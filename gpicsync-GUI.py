@@ -24,10 +24,22 @@ meta-data and can be used with software or webservice which can read them
 More informations at this URL:
 http://code.google.com/p/gpicsync/
 """
-
-import wx,wx.lib.colourdb,time,decimal,gettext,shutil,ConfigParser
-import os,sys,fnmatch,zipfile,subprocess
+import os
+import sys
+import fnmatch
+import zipfile
+import subprocess
 import traceback
+
+import time
+import decimal
+import gettext
+import shutil
+import ConfigParser
+
+import wx
+import wx.lib.colourdb
+
 if sys.platform == 'win32':
     import win32com.client
 from thread import start_new_thread
@@ -51,6 +63,10 @@ except ImportError:
     timezones = []
 else:
     timezones = pytz.common_timezones
+
+
+CONF_FILENAME = "gpicsync.conf"
+
 
 class GUI(wx.Frame):
     """Main Frame of GPicSync"""
@@ -89,129 +105,18 @@ class GUI(wx.Frame):
         self.defaultLon="0.000000"
         self.geoname_IPTCsummary=""
 
-        # Search for an eventual gpicsync.conf file
-        configFile=False
-        
-        if sys.platform=="win32":
-            confPath=os.environ["USERPROFILE"]+"/gpicsync.conf"
-            print "Searching configuration file "+confPath
-            if os.path.isfile(confPath):
-                configFile=True
-                fconf=open(os.environ["USERPROFILE"]+"/gpicsync.conf","r+")
-            else: configFile= False
-        if sys.platform==("linux2" or "darwin"):
-            confPath=os.path.expanduser("~/.gpicsync.conf")
-            print "Searching configuration file ~/.gpicsync.conf"
-            if os.path.isfile(confPath):
-                configFile=True
-                fconf=open(os.path.expanduser("~/.gpicsync.conf"),"r+")
-            else: configFile=False
-        if configFile==False:
-            print "Couldn't find the configuration file."
-            wx.CallAfter(self.consolePrint,"\n"+"Couldn't find the configuration file."+"\n")
-            
-        print "Attempting to read the configuration file..."
-        #try: 
-        if 1:   
-            conf= ConfigParser.ConfigParser()
-            conf.readfp(fconf) #parse the config file
-            if conf.has_option("gpicsync","timezone") == True:
-                self.timezone=conf.get("gpicsync","timezone")
-                if self.timezone=="": self.timezone=None
-                print "Timezone is :"+str(self.timezone)
-            if conf.has_option("gpicsync","UTCOffset") == True:
-                self.utcOffset=conf.get("gpicsync","utcoffset")
-            if conf.has_option("gpicsync","backup") == True:
-                self.backup=eval(conf.get("gpicsync","backup"))
-            if conf.has_option("gpicsync","urlGMaps") == True:
-                self.urlGMaps=conf.get("gpicsync","urlGMaps")
-            if conf.has_option("gpicsync","geonamesTags") == True:
-                self.geonamesTags=eval(conf.get("gpicsync","geonamesTags"))
-            if conf.has_option("gpicsync","interpolation") == True:
-                self.interpolation=eval(conf.get("gpicsync","interpolation"))
-            if conf.has_option("gpicsync","datesMustMatch") == True:
-                self.datesMustMatch=eval(conf.get("gpicsync","datesMustMatch"))
-            if conf.has_option("gpicsync","log") == True:
-                self.log=eval(conf.get("gpicsync","log"))
-            if conf.has_option("gpicsync","GMaps") == True:
-                self.GMaps=eval(conf.get("gpicsync","GMaps"))
-            if conf.has_option("gpicsync","UTCOffset") == True:
-                self.utcOffset=conf.get("gpicsync","UTCOffset")
-            if conf.has_option("gpicsync","maxTimeDifference") == True:
-                self.maxTimeDifference=conf.get("gpicsync","maxTimeDifference")
-            if conf.has_option("gpicsync","language") == True:
-                self.language=conf.get("gpicsync","language")
-            if conf.has_option("gpicsync","geoname_nearbyplace") == True:
-                self.geoname_nearbyplace=eval(conf.get("gpicsync","geoname_nearbyplace"))
-            if conf.has_option("gpicsync","geoname_region") == True:
-                self.geoname_region=eval(conf.get("gpicsync","geoname_region"))
-            if conf.has_option("gpicsync","geoname_country") == True:
-                self.geoname_country=eval(conf.get("gpicsync","geoname_country"))
-            if conf.has_option("gpicsync","geoname_summary") == True:
-                self.geoname_summary=eval(conf.get("gpicsync","geoname_summary"))
-            if conf.has_option("gpicsync","geoname_userdefine") == True:
-                self.geoname_userdefine=conf.get("gpicsync","geoname_userdefine")
-            if conf.has_option("gpicsync","geoname_caption") == True:
-                self.geoname_caption=eval(conf.get("gpicsync","geoname_caption"))
-            if conf.has_option("gpicsync","geoname_IPTCsummary") == True:
-                self.geoname_IPTCsummary=conf.get("gpicsync","geoname_IPTCsummary")
-            if conf.has_option("gpicsync","defaultdirectory") == True:
-                self.picDir=conf.get("gpicsync","defaultdirectory")
-            if conf.has_option("gpicsync","getimestamp") == True:
-                self.timeStamp=eval(conf.get("gpicsync","getimestamp"))
-            fconf.close()
-        #except:
-        if 0:
-            wx.CallAfter(self.consolePrint,"\n"
-            +"An error happened while reading the configuration file."+"\n")
+        if sys.platform in ("win32"):
+            self.config_file = os.environ["USERPROFILE"]+"/"+CONF_FILENAME
+        elif sys.platform in ("linux", "linux3", "linux2", "darwin"):
+            self.config_file = os.path.expanduser("~/."+CONF_FILENAME)
+        else:
+            print "Unknown platform, sorry!"
+            sys.exit(1)
 
-        try:
-            #print self.language
-            locale_dir="locale"
-            if self.language=="system":
-		lang = gettext.translation('gpicsync-GUI', locale_dir, codeset=codeset)
-		lang.install()
-            elif self.language=="French":
-		lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['fr'], codeset=codeset)
-		lang.install()
-            elif self.language=="Italian":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['it'], codeset=codeset)
-		lang.install()
-            elif self.language=="German":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['de'], codeset=codeset)
-		lang.install()
-            elif self.language=="S.Chinese":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['zh_CN'], codeset=codeset)
-		lang.install()
-            elif self.language=="T.Chinese":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['zh_TW'], codeset=codeset)
-		lang.install()
-            elif self.language=="Catalan":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['ca'], codeset=codeset)
-		lang.install()
-            elif self.language=="Spanish":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['es'], codeset=codeset)
-		lang.install()
-            elif self.language=="Polish":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['pl'], codeset=codeset)
-		lang.install()
-            elif self.language=="Dutch":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['nl'], codeset=codeset)
-		lang.install()
-            elif self.language=="Portuguese":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['pt'], codeset=codeset)
-		lang.install()
-            elif self.language=="Czech":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['cs'], codeset=codeset)
-		lang.install()
-            elif self.language=="Russian":
-                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['ru'], codeset=codeset)
-		lang.install()
-            else:
-                gettext.install('gpicsync-GUI', "None")
-        except:
-            print "Couldn't load translation."
-        del locale_dir
+        self.read_config()
+
+        self.set_language()
+
         #####   Menus  #####
 
         bkg=wx.Panel(self)
@@ -221,6 +126,7 @@ class GUI(wx.Frame):
         timeShift=menu1.Append(wx.NewId(),_("Local time correction"))
         languageChoice=menu1.Append(wx.NewId(),_("Language"))
         self.Bind(wx.EVT_MENU,self.languageApp,languageChoice)
+        #TODO what's this!? a windows only feature?
         if sys.platform == 'win32':
             configFile=menu1.Append(wx.NewId(),_("Configuration file"))
             self.Bind(wx.EVT_MENU,self.showConfig,configFile)
@@ -466,61 +372,157 @@ class GUI(wx.Frame):
         else:
             self.exifcmd = 'exiftool'
 
+    def read_config(self):
+        print "Attempting to read the configuration file..."
+
+        conf= ConfigParser.ConfigParser()
+        conf.read(self.config_file)
+
+        if conf.has_option("gpicsync","timezone") == True:
+            self.timezone=conf.get("gpicsync","timezone")
+            if self.timezone=="": self.timezone=None
+            print "Timezone is :"+str(self.timezone)
+        if conf.has_option("gpicsync","UTCOffset") == True:
+            self.utcOffset=conf.get("gpicsync","utcoffset")
+        if conf.has_option("gpicsync","backup") == True:
+            self.backup=eval(conf.get("gpicsync","backup"))
+        if conf.has_option("gpicsync","urlGMaps") == True:
+            self.urlGMaps=conf.get("gpicsync","urlGMaps")
+        if conf.has_option("gpicsync","geonamesTags") == True:
+            self.geonamesTags=eval(conf.get("gpicsync","geonamesTags"))
+        if conf.has_option("gpicsync","interpolation") == True:
+            self.interpolation=eval(conf.get("gpicsync","interpolation"))
+        if conf.has_option("gpicsync","datesMustMatch") == True:
+            self.datesMustMatch=eval(conf.get("gpicsync","datesMustMatch"))
+        if conf.has_option("gpicsync","log") == True:
+            self.log=eval(conf.get("gpicsync","log"))
+        if conf.has_option("gpicsync","GMaps") == True:
+            self.GMaps=eval(conf.get("gpicsync","GMaps"))
+        if conf.has_option("gpicsync","UTCOffset") == True:
+            self.utcOffset=conf.get("gpicsync","UTCOffset")
+        if conf.has_option("gpicsync","maxTimeDifference") == True:
+            self.maxTimeDifference=conf.get("gpicsync","maxTimeDifference")
+        if conf.has_option("gpicsync","language") == True:
+            self.language=conf.get("gpicsync","language")
+        if conf.has_option("gpicsync","geoname_nearbyplace") == True:
+            self.geoname_nearbyplace=eval(conf.get("gpicsync","geoname_nearbyplace"))
+        if conf.has_option("gpicsync","geoname_region") == True:
+            self.geoname_region=eval(conf.get("gpicsync","geoname_region"))
+        if conf.has_option("gpicsync","geoname_country") == True:
+            self.geoname_country=eval(conf.get("gpicsync","geoname_country"))
+        if conf.has_option("gpicsync","geoname_summary") == True:
+            self.geoname_summary=eval(conf.get("gpicsync","geoname_summary"))
+        if conf.has_option("gpicsync","geoname_userdefine") == True:
+            self.geoname_userdefine=conf.get("gpicsync","geoname_userdefine")
+        if conf.has_option("gpicsync","geoname_caption") == True:
+            self.geoname_caption=eval(conf.get("gpicsync","geoname_caption"))
+        if conf.has_option("gpicsync","geoname_IPTCsummary") == True:
+            self.geoname_IPTCsummary=conf.get("gpicsync","geoname_IPTCsummary")
+        if conf.has_option("gpicsync","defaultdirectory") == True:
+            self.picDir=conf.get("gpicsync","defaultdirectory")
+        if conf.has_option("gpicsync","getimestamp") == True:
+            self.timeStamp=eval(conf.get("gpicsync","getimestamp"))
+
     def writeConfFile(self):
         """Write the whole configuration file"""
-        try:
-            fconf=open(os.environ["USERPROFILE"]+"/gpicsync.conf","r+")
-        except:
-            fconf=open(os.path.expanduser("~/.gpicsync.conf"),"w")
-        header="#This is a configuration file for GPicSync geocoding software\n"+\
-        "#Read the comments below to see what you can set. Boolean value (True or False) and\n"+\
-        "#the default language option must always begin with a Capital Letter\n\n[gpicsync]\n\n"
-        fconf.write(header)
-        fconf.write("#Default language at start-up that you can also change in 'options'>'languages'\n")
-        fconf.write("language="+self.language+"\n\n")
-        fconf.write("#Default Time Zone\n")
-        if self.timezone:
-            fconf.write("timezone="+str(self.timezone)+"\n\n")
-        else:
-            fconf.write("timezone=\n\n")
-        fconf.write("#Default UTC Offset\n")
-        fconf.write("utcoffset="+self.utcEntry.GetValue()+"\n\n")
-        fconf.write("#geocode picture only if time difference to nearest trackpoint is below X seconds\n")
-        fconf.write("maxtimedifference="+str(self.timerangeEntry.GetValue())+"\n\n")
-        fconf.write("#Backup pictures by default (True or False)\n")
-        fconf.write("backup="+str(self.backupCheck.GetValue())+"\n\n")
-        fconf.write("#geolocalize pictures by default only if dates match by default (True or False)\n")
-        fconf.write("datesmustmatch="+str(self.dateCheck.GetValue())+"\n\n")
-        fconf.write("#Enable TimeStamp option for the Google Earth doc.kml file (True or False)\n")
-        fconf.write("getimestamp="+str(self.geTStamps.GetValue())+"\n\n")
-        fconf.write("#Create a Google Map export (doc-web.kml) by default (True or False)\n")
-        fconf.write("gmaps="+str(self.gmCheck.GetValue())+"\n\n")
-        fconf.write("#Default base URL for Google Maps export\n")
-        fconf.write("urlgmaps="+self.urlEntry.GetValue()+"\n\n")
-        fconf.write("#Use the interpolation mode by default (True or False)\n")
-        fconf.write("interpolation="+str(self.interpolationCheck.GetValue())+"\n\n")
-        fconf.write("#Create a log file by default\n")
-        fconf.write("log="+str(self.logFile.GetValue())+"\n\n")
-        fconf.write("#Add geonames and geotagged in EXIF by default (True or False) and select the ones you want\n")
-        fconf.write("geonamestags="+str(self.geonamesCheck.GetValue())+"\n")
-        fconf.write("geoname_nearbyplace="+str(self.geoname_nearbyplace)+"\n")
-        fconf.write("geoname_region="+str(self.geoname_region)+"\n")
-        fconf.write("geoname_country="+str(self.geoname_country)+"\n")
-        fconf.write("geoname_summary="+str(self.geoname_summary)+"\n")
-        fconf.write("geoname_userdefine="+self.geoname_userdefine+"\n\n")
-        fconf.write("#Add summary in IPTC with the following variables (if you use quotes escape them: \\\"  ):\n")
-        fconf.write("#{LATITUDE} {LONGITUDE} {DISTANCETO} {NEARBYPLACE} {REGION} {COUNTRY} {ORIENTATION} \n")
-        fconf.write("geoname_caption="+str(self.geoname_caption)+"\n")
-        fconf.write("geoname_IPTCsummary="+str(self.geoname_IPTCsummary)+"\n\n")
-        fconf.write("#Set default or last directory automatically used\n")
-        fconf.write("Defaultdirectory="+self.picDir)
-        fconf.write("")
-        fconf.close()
+        with file(self.config_file, 'w') as fconf:
+            header="#This is a configuration file for GPicSync geocoding software\n"+\
+            "#Read the comments below to see what you can set. Boolean value (True or False) and\n"+\
+            "#the default language option must always begin with a Capital Letter\n\n[gpicsync]\n\n"
+            fconf.write(header)
+            fconf.write("#Default language at start-up that you can also change in 'options'>'languages'\n")
+            fconf.write("language="+self.language+"\n\n")
+            fconf.write("#Default Time Zone\n")
+            if self.timezone:
+                fconf.write("timezone="+str(self.timezone)+"\n\n")
+            else:
+                fconf.write("timezone=\n\n")
+            fconf.write("#Default UTC Offset\n")
+            fconf.write("utcoffset="+self.utcEntry.GetValue()+"\n\n")
+            fconf.write("#geocode picture only if time difference to nearest trackpoint is below X seconds\n")
+            fconf.write("maxtimedifference="+str(self.timerangeEntry.GetValue())+"\n\n")
+            fconf.write("#Backup pictures by default (True or False)\n")
+            fconf.write("backup="+str(self.backupCheck.GetValue())+"\n\n")
+            fconf.write("#geolocalize pictures by default only if dates match by default (True or False)\n")
+            fconf.write("datesmustmatch="+str(self.dateCheck.GetValue())+"\n\n")
+            fconf.write("#Enable TimeStamp option for the Google Earth doc.kml file (True or False)\n")
+            fconf.write("getimestamp="+str(self.geTStamps.GetValue())+"\n\n")
+            fconf.write("#Create a Google Map export (doc-web.kml) by default (True or False)\n")
+            fconf.write("gmaps="+str(self.gmCheck.GetValue())+"\n\n")
+            fconf.write("#Default base URL for Google Maps export\n")
+            fconf.write("urlgmaps="+self.urlEntry.GetValue()+"\n\n")
+            fconf.write("#Use the interpolation mode by default (True or False)\n")
+            fconf.write("interpolation="+str(self.interpolationCheck.GetValue())+"\n\n")
+            fconf.write("#Create a log file by default\n")
+            fconf.write("log="+str(self.logFile.GetValue())+"\n\n")
+            fconf.write("#Add geonames and geotagged in EXIF by default (True or False) and select the ones you want\n")
+            fconf.write("geonamestags="+str(self.geonamesCheck.GetValue())+"\n")
+            fconf.write("geoname_nearbyplace="+str(self.geoname_nearbyplace)+"\n")
+            fconf.write("geoname_region="+str(self.geoname_region)+"\n")
+            fconf.write("geoname_country="+str(self.geoname_country)+"\n")
+            fconf.write("geoname_summary="+str(self.geoname_summary)+"\n")
+            fconf.write("geoname_userdefine="+self.geoname_userdefine+"\n\n")
+            fconf.write("#Add summary in IPTC with the following variables (if you use quotes escape them: \\\"  ):\n")
+            fconf.write("#{LATITUDE} {LONGITUDE} {DISTANCETO} {NEARBYPLACE} {REGION} {COUNTRY} {ORIENTATION} \n")
+            fconf.write("geoname_caption="+str(self.geoname_caption)+"\n")
+            fconf.write("geoname_IPTCsummary="+str(self.geoname_IPTCsummary)+"\n\n")
+            fconf.write("#Set default or last directory automatically used\n")
+            fconf.write("Defaultdirectory="+self.picDir)
+            fconf.write("")
 
     def showConfig(self,evt):
         """open the configuration file in notepad.exe"""
-        os.popen('notepad.exe "%s"'% (os.environ["USERPROFILE"]+"/gpicsync.conf"))
+        os.popen('notepad.exe "%s"'% (os.environ["USERPROFILE"]+"/"+CONF_FILENAME))
         wx.CallAfter(self.consolePrint,"\n"+_("If you've changed and saved the configuration file you should restart the application to take effect.")+"\n")
+
+    def set_language(self):
+        try:
+            #print self.language
+            locale_dir="locale"
+            if self.language=="system":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, codeset=codeset)
+                lang.install()
+            elif self.language=="French":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['fr'], codeset=codeset)
+                lang.install()
+            elif self.language=="Italian":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['it'], codeset=codeset)
+                lang.install()
+            elif self.language=="German":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['de'], codeset=codeset)
+                lang.install()
+            elif self.language=="S.Chinese":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['zh_CN'], codeset=codeset)
+                lang.install()
+            elif self.language=="T.Chinese":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['zh_TW'], codeset=codeset)
+                lang.install()
+            elif self.language=="Catalan":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['ca'], codeset=codeset)
+                lang.install()
+            elif self.language=="Spanish":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['es'], codeset=codeset)
+                lang.install()
+            elif self.language=="Polish":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['pl'], codeset=codeset)
+                lang.install()
+            elif self.language=="Dutch":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['nl'], codeset=codeset)
+                lang.install()
+            elif self.language=="Portuguese":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['pt'], codeset=codeset)
+                lang.install()
+            elif self.language=="Czech":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['cs'], codeset=codeset)
+                lang.install()
+            elif self.language=="Russian":
+                lang = gettext.translation('gpicsync-GUI', locale_dir, languages=['ru'], codeset=codeset)
+                lang.install()
+            else:
+                gettext.install('gpicsync-GUI', "None")
+        except:
+            print "Couldn't load translation."
+        del locale_dir
 
     def consolePrint(self,msg):
         """
@@ -668,15 +670,15 @@ class GUI(wx.Frame):
             if sys.platform == 'win32':
                 googleEarth.OpenKmlFile(path,True)
             else:
-            	if sys.platform.find("linux")!=-1:
-            	    def goGELinux():
+                if sys.platform.find("linux")!=-1:
+                    def goGELinux():
                         os.system(googleEarth +" "+path)
                     start_new_thread(goGELinux,())
                 else:
                     if sys.platform == 'darwin':
-            	    	def goGEOSX():
-                    		os.system(googleEarth +" "+path)
-                    	start_new_thread(goGEOSX,())
+                        def goGEOSX():
+                            os.system(googleEarth +" "+path)
+                        start_new_thread(goGEOSX,())
         except:
             wx.CallAfter(self.consolePrint,"\n"+_("Couldn't find or launch Google Earth")+"\n")
 
@@ -713,9 +715,9 @@ class GUI(wx.Frame):
             openGpx=wx.FileDialog(self,style=wx.FD_MULTIPLE)
         else:
             if sys.platform.find("linux")!=-1:
-            	openGpx=wx.FileDialog(self)
+                openGpx=wx.FileDialog(self)
             else:
-            	if sys.platform == 'darwin':
+                if sys.platform == 'darwin':
                      openGpx=wx.FileDialog(self)
         openGpx.SetWildcard("GPX Files(*.gpx)|*.gpx|NMEA Files (*.txt)|*.txt")
         openGpx.ShowModal()
@@ -723,7 +725,7 @@ class GUI(wx.Frame):
             self.gpxFile=openGpx.GetPaths()
         else:
             if sys.platform.find("linux")!=-1:
-            	self.gpxFile=[openGpx.GetPath()]
+                self.gpxFile=[openGpx.GetPath()]
             else:
                 if sys.platform == 'darwin':
                      self.gpxFile=[openGpx.GetPath()]
